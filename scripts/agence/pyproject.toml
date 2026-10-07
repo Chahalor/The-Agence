@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "the-agence"
+version = "0.1.0"
+description = "File-based The Agence coordination helpers"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["PyYAML>=6.0,<7"]
+
+[project.scripts]
+ta = "agence.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+agence = ["templates/*.md", "templates/roles/*.md"]
