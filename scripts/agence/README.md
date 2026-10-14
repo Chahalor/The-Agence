@@ -24,6 +24,7 @@ For development, install with `pip install -e ./scripts/agence`.
 
 ```text
 ta [--root PATH] setup [PATH]
+ta install [SOURCE] [--codex-dir PATH] [--dry-run]
 ta [--root PATH] check file FILE_OR_PATH
 ta [--root PATH] check dir [PATH]
 ta [--root PATH] check refs [FILE_OR_PATH]
@@ -53,6 +54,36 @@ use the current directory when no workspace exists.
 `setup PATH` initializes exactly that destination. With no PATH it uses
 `--root`, then the current directory; it does not choose an ancestor workspace.
 If both PATH and `--root` are supplied, they must identify the same destination.
+
+### Install Codex agents
+
+From the repository root:
+
+```sh
+scripts/agence/.venv/bin/ta install
+```
+
+This copies the regular `.toml` files from `./agents` into `~/.codex/agents/`,
+the personal-agent location documented in the
+[official Codex documentation](https://learn.chatgpt.com/docs/agent-configuration/subagents).
+No workspace initialization is required. The source is a filesystem directory,
+not a bundled package resource; pass its path when running elsewhere:
+
+```sh
+ta install /path/to/The_Agence/agents
+ta install ./agents --dry-run
+ta install ./agents --codex-dir /tmp/example-codex
+```
+
+`--codex-dir` selects the Codex root; files go into its `agents` subdirectory.
+The default is always `~/.codex`. `--root` does not select installation paths.
+Other source file types and nested definitions are ignored; entries named
+`.toml` must be regular files. Contents and filenames are
+preserved; agent definitions and models are not rewritten. Existing identical
+files are left untouched. A different existing file, symlink or incompatible
+path fails before any copies begin. A publication failure reports files already
+installed; complete files are published exclusively and retries are safe.
+`--dry-run` runs the same preflight without creating files or directories.
 
 ### Initialize a project
 

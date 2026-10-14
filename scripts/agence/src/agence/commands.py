@@ -165,3 +165,8 @@ def status(args):
             raise AgenceError(f'{args.selection}: unknown or ambiguous document selection')
         selected = matches[0]
     return render_status(workspace, result.documents, selected)
+
+
+def install(args):
+    from .installing import install_agents
+    return install_agents(args.source, args.codex_dir or Path.home() / '.codex', args.dry_run)

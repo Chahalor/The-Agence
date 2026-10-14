@@ -7,6 +7,7 @@ Generated from source documents. Regenerate with `ta index`; do not edit manuall
 | ID | Work | Status | Owner |
 |---|---|---|---|
 | T-002 | [Implement agence Python CLI](work/T-002-implement-agence-cli.md) | review | reviewer |
+| T-003 | [Install Codex agents](work/T-003-install-codex-agents.md) | review | reviewer |
 
 ## Decisions
 

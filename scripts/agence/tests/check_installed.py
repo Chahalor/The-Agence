@@ -21,6 +21,16 @@ def main():
             return result.stdout
 
         assert 'usage:' in run('--help')
+        agents = Path(directory)/'agents'
+        agents.mkdir()
+        definition = agents/'tester.toml'
+        definition.write_text('name = "tester"\n', encoding='utf-8')
+        codex = Path(directory)/'codex user'
+        assert 'Would install ' in run('install', '--codex-dir', codex, '--dry-run')
+        assert not codex.exists()
+        assert 'Installed ' in run('install', '--codex-dir', codex)
+        assert (codex/'agents'/'tester.toml').read_bytes() == definition.read_bytes()
+        assert 'Unchanged ' in run('install', '--codex-dir', codex)
         run('setup', root)
         for role in ('architect','coder','tester','reviewer','perfs','docs'):
             assert (root/'.agence'/'roles'/f'{role}.md').is_file()

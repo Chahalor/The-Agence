@@ -13,6 +13,12 @@ def parser():
     sub = root.add_subparsers(dest='command', required=True)
     setup = sub.add_parser('setup', help='initialize a workspace, preserving existing content')
     setup.add_argument('path', nargs='?', metavar='PATH')
+    install = sub.add_parser('install', help='copy Codex agent definitions into ~/.codex/agents')
+    install.add_argument('source', nargs='?', default='agents', metavar='SOURCE',
+                         help='directory of .toml agent files (default: ./agents)')
+    install.add_argument('--codex-dir', metavar='PATH',
+                         help='Codex user directory (default: ~/.codex)')
+    install.add_argument('--dry-run', action='store_true', help='show planned copies without writing files')
     check = sub.add_parser('check', help='validate documents, layout and local references')
     checks = check.add_subparsers(dest='check_kind', required=True)
     for name in ('file', 'dir', 'refs', 'all'):
