@@ -3,7 +3,7 @@ schema: agence/work/v1
 id: T-003
 title: Install Codex agents
 status: review
-owner: reviewer
+owner: tester
 tags: [cli, installation, codex]
 related: [T-002]
 ---
@@ -18,7 +18,9 @@ repository's `agents/` directory to the user's personal Codex agents directory.
 ## Constraints
 
 Preserve source contents, filenames, models and existing user configuration.
-Do not overwrite differing installed definitions. Installation must not depend
+By default, do not overwrite differing installed definitions. The explicit
+user-requested force option authorizes atomic replacement of differing regular
+agent files; symlinks and incompatible paths remain rejected. Installation must not depend
 on an initialized tA workspace or alter agent role files.
 
 ## Context
@@ -30,14 +32,16 @@ on an initialized tA workspace or alter agent role files.
 
 ## Current state
 
-2026-10-14: Independent tester validation passed. Added 14 tests to the seven
-existing install cases; the full source suite passes 64/64, without skips.
-All 21 install tests also pass against a newly built wheel in a temporary venv
-outside the repository, with source PYTHONPATH injection disabled. Installed
-console workflow and dependency consistency checks pass. All installation
-destinations were disposable, including the redirected default-home test;
-the real personal Codex directory was not modified. Ready for independent
-review; task remains in review, now owned by reviewer.
+2026-11-19: User-requested force mode is implemented on top of the existing
+installation command and the user's initial draft. Both flag positions and the
+short alias work; forced dry-run reports replacements, and actual replacement
+publishes complete bytes atomically. Identical agents, personal files and global
+configuration remain untouched. All 71 source tests and all 28 installed install
+tests pass; the installed console workflow also passes. The project-local venv
+is updated. Personal agent destinations were only inspected through dry-run;
+replacement tests used disposable directories. Ready for tester validation of
+the force extension, then reviewer inspection; no independent validation of the
+new extension is claimed.
 
 ## Activity
 
@@ -136,3 +140,47 @@ Behavioral validation passed and coverage is saved in
 `scripts/agence/tests/test_install.py`. Review the install command's preflight,
 exclusive publication, preservation and failure cleanup. Retain the test limits
 above; keep T-003 in review until the required independent review is resolved.
+
+### decision · coder
+
+2026-11-19: User explicitly requested completing force mode. This extends the
+original default no-overwrite contract: force authorizes replacing differing
+regular agent files with source bytes, without weakening symlink/directory
+checks or changing existing behavior when the flag is absent. Identical files
+are skipped in both modes. The flag is boolean and install-specific, accepted
+before or after the command, with a short alias.
+
+### result · coder
+
+2026-11-19: Completed the draft in CLI parsing, install dispatch and publication.
+Forced changes are queued for replacement rather than mislabeled unchanged.
+Atomic replacement uses staged complete contents; failed publication preserves
+the previous file. Partial results distinguish installed/replaced files and
+explain retry with force. Dry-run reports planned installs and replacements.
+Updated command documentation and added seven regression tests.
+
+Validation:
+
+- Full source suite: 71/71 passed, no skips.
+- Built wheel and updated the existing project-local venv.
+- Installed install suite: 28/28 passed, no skips, with source injection disabled.
+- Installed console workflow passed outside the repository.
+- Command help and real-source force dry-run passed; personal agents were not
+  overwritten during validation.
+- Regression coverage includes both flag positions, the short alias, mixed
+  new/differing/identical files, dry-run, incompatible targets, failed/interrupted
+  replacement, partial completion and retry, and a target changed during staging.
+
+Refs:
+
+- `scripts/agence/src/agence/cli.py`
+- `scripts/agence/src/agence/commands.py`
+- `scripts/agence/src/agence/installing.py`
+- `scripts/agence/tests/test_install.py`
+- `scripts/agence/README.md`
+
+### handoff · coder → tester
+
+Independently validate the force extension, including replacement failure
+semantics, no-force preservation and dry-run. Then return to reviewer for the
+pending review, accounting for this explicit contract extension.

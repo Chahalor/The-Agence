@@ -24,7 +24,7 @@ For development, install with `pip install -e ./scripts/agence`.
 
 ```text
 ta [--root PATH] setup [PATH]
-ta install [SOURCE] [--codex-dir PATH] [--dry-run]
+ta install [SOURCE] [--codex-dir PATH] [--dry-run] [--force]
 ta [--root PATH] check file FILE_OR_PATH
 ta [--root PATH] check dir [PATH]
 ta [--root PATH] check refs [FILE_OR_PATH]
@@ -72,6 +72,8 @@ not a bundled package resource; pass its path when running elsewhere:
 ```sh
 ta install /path/to/The_Agence/agents
 ta install ./agents --dry-run
+ta install ./agents --force --dry-run
+ta install ./agents --force
 ta install ./agents --codex-dir /tmp/example-codex
 ```
 
@@ -80,10 +82,20 @@ The default is always `~/.codex`. `--root` does not select installation paths.
 Other source file types and nested definitions are ignored; entries named
 `.toml` must be regular files. Contents and filenames are
 preserved; agent definitions and models are not rewritten. Existing identical
-files are left untouched. A different existing file, symlink or incompatible
-path fails before any copies begin. A publication failure reports files already
-installed; complete files are published exclusively and retries are safe.
-`--dry-run` runs the same preflight without creating files or directories.
+files are left untouched, including with `--force`. By default, a different
+existing file fails before any copies begin. `--force` (or `-f`) authorizes
+atomic replacement of differing regular agent files with the source contents.
+It works before or after `install`; other commands reject this option. Symlinks
+and incompatible paths still fail, even in force mode. Personal agents absent
+from the source and the Codex configuration remain untouched.
+
+`--dry-run` runs the same preflight without creating files or directories;
+combined with `--force`, it distinguishes `Would replace`, `Would install` and
+`Unchanged`. Successful writes report `Replaced` or `Installed`. A publication
+failure reports the files already installed/replaced and retains completed
+changes; there is no batch rollback. Replacement is atomic per file: a failed
+publication keeps that file's old contents. Retry with the same options after
+fixing the cause.
 
 ### Initialize a project
 

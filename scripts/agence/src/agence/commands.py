@@ -169,4 +169,4 @@ def status(args):
 
 def install(args):
     from .installing import install_agents
-    return install_agents(args.source, args.codex_dir or Path.home() / '.codex', args.dry_run)
+    return install_agents(args.source, args.codex_dir or Path.home() / '.codex', args.dry_run, getattr(args, 'force_run', False))

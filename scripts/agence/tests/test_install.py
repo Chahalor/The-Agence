@@ -51,6 +51,137 @@ class InstallTests(unittest.TestCase):
                 os.readlink(p) if p.is_symlink() else p.read_bytes() if p.is_file() else None)
                 for p in self.root.rglob('*')}
 
+    def test_force_replaces_only_differing_agents(self):
+        installed = self.destination/'agents'
+        installed.mkdir(parents=True)
+        changed = installed/'reviewer.toml'
+        changed.write_bytes(b'old reviewer')
+        identical = installed/'tester.toml'
+        identical.write_bytes((self.source/'tester.toml').read_bytes())
+        original_stat = identical.stat()
+        config = self.destination/'config.toml'
+        config.write_bytes(b'personal configuration')
+        personal = installed/'personal.toml'
+        personal.write_bytes(b'personal agent')
+        (self.source/'new.toml').write_bytes(b'new agent')
+        source_bytes = {p.name: p.read_bytes() for p in self.source.iterdir()}
+        result = self.cli('install', '--codex-dir', self.destination, '--force')
+        self.assertEqual(result.stdout.count('Replaced '), 1)
+        self.assertEqual(result.stdout.count('Installed '), 1)
+        self.assertEqual(result.stdout.count('Unchanged '), 1)
+        for name, content in source_bytes.items():
+            self.assertEqual((installed/name).read_bytes(), content)
+            self.assertEqual((self.source/name).read_bytes(), content)
+        self.assertEqual(identical.stat().st_ino, original_stat.st_ino)
+        self.assertEqual(identical.stat().st_mtime_ns, original_stat.st_mtime_ns)
+        self.assertEqual(config.read_bytes(), b'personal configuration')
+        self.assertEqual(personal.read_bytes(), b'personal agent')
+        self.assertFalse(list(installed.glob('.ta-install-*')))
+
+    def test_force_flag_works_before_and_after_install(self):
+        installed = self.destination/'agents'
+        installed.mkdir(parents=True)
+        for arguments in (('--force', 'install'), ('install', '--force'),
+                          ('-f', 'install'), ('install', '-f')):
+            with self.subTest(arguments=arguments):
+                (installed/'reviewer.toml').write_bytes(b'old agent')
+                result = self.cli(*arguments, '--codex-dir', self.destination)
+                self.assertIn('Replaced ', result.stdout)
+                self.assertEqual((installed/'reviewer.toml').read_bytes(),
+                                 (self.source/'reviewer.toml').read_bytes())
+        self.cli('--force', 'status', code=2)
+        self.cli('install', '--force=false', code=2)
+
+    def test_force_dry_run_reports_replacements_without_writes(self):
+        installed = self.destination/'agents'
+        installed.mkdir(parents=True)
+        (installed/'reviewer.toml').write_bytes(b'old agent')
+        before = self.snapshot()
+        result = self.cli('install', '--codex-dir', self.destination, '--force', '--dry-run')
+        self.assertIn('Would replace ', result.stdout)
+        self.assertIn('Would install ', result.stdout)
+        self.assertNotIn('Unchanged ', result.stdout)
+        self.assertEqual(before, self.snapshot())
+
+    def test_force_rejects_incompatible_targets_without_writes(self):
+        installed = self.destination/'agents'
+        installed.mkdir(parents=True)
+        target = installed/'reviewer.toml'
+        outside = self.root/'protected-file'
+        outside.write_bytes(b'preserve')
+        for kind in ('directory', 'symlink', 'broken-symlink'):
+            with self.subTest(kind=kind):
+                if kind == 'directory':
+                    target.mkdir()
+                else:
+                    target.symlink_to(outside if kind == 'symlink' else self.root/'absent')
+                before = self.snapshot()
+                for options in (('--force',), ('--force', '--dry-run')):
+                    self.cli('install', '--codex-dir', self.destination, *options, code=1)
+                    self.assertEqual(before, self.snapshot())
+                if kind == 'directory':
+                    target.rmdir()
+                else:
+                    target.unlink()
+        self.assertEqual(outside.read_bytes(), b'preserve')
+
+    def test_force_failed_replace_preserves_old_bytes_and_cleans_staging(self):
+        installed = self.destination/'agents'
+        installed.mkdir(parents=True)
+        target = installed/'reviewer.toml'
+        target.write_bytes(b'old complete agent')
+        before = self.snapshot()
+        for failure in (OSError('replace failed'), KeyboardInterrupt()):
+            with self.subTest(failure=type(failure).__name__):
+                with patch('agence.installing.os.replace', side_effect=failure):
+                    with self.assertRaisesRegex(AgenceError, 'retry ta install --force'):
+                        install_agents(self.source, self.destination, force_run=True)
+                self.assertEqual(target.read_bytes(), b'old complete agent')
+                self.assertEqual(sorted(p.name for p in installed.iterdir()), ['reviewer.toml'])
+                # Parent directory mtimes change when staging files are cleaned.
+                self.assertEqual(before[target.relative_to(self.root)],
+                                 self.snapshot()[target.relative_to(self.root)])
+
+    def test_force_partial_failure_reports_changes_and_retry_recovers(self):
+        installed = self.destination/'agents'
+        installed.mkdir(parents=True)
+        for name in ('reviewer', 'tester'):
+            (installed/f'{name}.toml').write_bytes(b'old complete agent')
+        real_replace = os.replace
+        calls = 0
+        def fail_second(source, target):
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                raise OSError('second replacement failed')
+            return real_replace(source, target)
+        with patch('agence.installing.os.replace', side_effect=fail_second):
+            with self.assertRaisesRegex(AgenceError, 'Replaced: .*reviewer.toml'):
+                install_agents(self.source, self.destination, force_run=True)
+        self.assertEqual((installed/'reviewer.toml').read_bytes(), (self.source/'reviewer.toml').read_bytes())
+        self.assertEqual((installed/'tester.toml').read_bytes(), b'old complete agent')
+        self.assertFalse(list(installed.glob('.ta-install-*')))
+        retry = self.cli('install', '--codex-dir', self.destination, '--force')
+        self.assertEqual(retry.stdout.count('Replaced '), 1)
+        self.assertEqual(retry.stdout.count('Unchanged '), 1)
+
+    def test_force_rechecks_destination_after_staging(self):
+        installed = self.destination/'agents'
+        installed.mkdir(parents=True)
+        target = installed/'reviewer.toml'
+        target.write_bytes(b'old agent')
+        outside = self.root/'protected-file'
+        outside.write_bytes(b'preserve')
+        def link_after_preflight(fd):
+            target.unlink()
+            target.symlink_to(outside)
+        with patch('agence.installing.os.fsync', side_effect=link_after_preflight):
+            with self.assertRaisesRegex(AgenceError, 'incompatible destination'):
+                install_agents(self.source, self.destination, force_run=True)
+        self.assertTrue(target.is_symlink())
+        self.assertEqual(outside.read_bytes(), b'preserve')
+        self.assertFalse(list(installed.glob('.ta-install-*')))
+
     def test_cli_default_source_and_idempotent_install(self):
         invocation = [sys.executable, '-m', 'agence', 'install', '--codex-dir', str(self.destination)]
         first = subprocess.run(invocation, cwd=self.root, env=self.env, capture_output=True, text=True, timeout=20)

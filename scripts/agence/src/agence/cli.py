@@ -10,6 +10,8 @@ from .workspace import AgenceError
 def parser():
     root = argparse.ArgumentParser(prog='ta', description='The Agence Markdown/YAML workspace helpers')
     root.add_argument('--root', metavar='PATH', help='explicit workspace directory or its .agence directory')
+    root.add_argument('--force', '-f', dest='force_run', action='store_true',
+                      help='replace differing agent files (install only)')
     sub = root.add_subparsers(dest='command', required=True)
     setup = sub.add_parser('setup', help='initialize a workspace, preserving existing content')
     setup.add_argument('path', nargs='?', metavar='PATH')
@@ -18,6 +20,8 @@ def parser():
                          help='directory of .toml agent files (default: ./agents)')
     install.add_argument('--codex-dir', metavar='PATH',
                          help='Codex user directory (default: ~/.codex)')
+    install.add_argument('--force', '-f', dest='force_run', action='store_true',
+                         default=argparse.SUPPRESS, help='atomically replace differing agent files')
     install.add_argument('--dry-run', action='store_true', help='show planned copies without writing files')
     check = sub.add_parser('check', help='validate documents, layout and local references')
     checks = check.add_subparsers(dest='check_kind', required=True)
@@ -44,6 +48,8 @@ def parser():
 
 def main(argv=None):
     args = parser().parse_args(argv)
+    if args.force_run and args.command != 'install':
+        parser().error('--force is only supported by install')
     if args.command == 'setup' and args.path and args.root:
         from .workspace import explicit_workspace
         if explicit_workspace(args.path).root.resolve() != explicit_workspace(args.root).root.resolve():
