@@ -1,6 +1,6 @@
 name = "perf"
 description = "Perf tA : mesurer, profiler et valider les performances selon le rôle perfs."
-model = "gpt-6-astra"
+model = "gpt-6.2-astra"
 model_reasoning_effort = "high"
 
 developer_instructions = """

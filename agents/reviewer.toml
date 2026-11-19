@@ -1,6 +1,6 @@
 name = "reviewer"
 description = "Reviewer tA : examiner les changements et produire des constats étayés."
-model = "gpt-6-sol"
+model = "gpt-6.2-sol"
 model_reasoning_effort = "xhigh"
 
 developer_instructions = """
